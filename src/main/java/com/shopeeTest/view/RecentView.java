@@ -11,7 +11,7 @@ import java.util.List;
 @Data
 public class RecentView {
     String average;
-    Double varience;
+    Double variance;
     @Builder.Default
     List<Date> dates = new ArrayList<>();
     @Builder.Default

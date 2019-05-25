@@ -8,5 +8,6 @@ import java.util.List;
 
 @Repository
 public interface ExchangeRateRepository extends JpaRepository<ExchangeRate,String> {
+    List<ExchangeRate> findAllByParentAndMarkForDeleteFalse(String parent);
     List<ExchangeRate> findAllByMarkForDeleteFalse();
 }

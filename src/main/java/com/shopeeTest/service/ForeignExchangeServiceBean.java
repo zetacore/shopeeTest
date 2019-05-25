@@ -5,6 +5,7 @@ import com.shopeeTest.dto.ExchangeRateDTO;
 import com.shopeeTest.dto.ForeignExchangeDTO;
 import com.shopeeTest.model.ExchangeRate;
 import com.shopeeTest.model.ForeignExchange;
+import com.shopeeTest.repository.ExchangeRateRepository;
 import com.shopeeTest.repository.ForeignExchangeRepository;
 import com.shopeeTest.view.FindByDateView;
 import com.shopeeTest.view.RecentView;
@@ -23,7 +24,10 @@ import java.util.List;
 public class ForeignExchangeServiceBean implements ForeignExchangeService {
 
     @Autowired
-    ForeignExchangeRepository foreignExchangeRepository;
+    private ForeignExchangeRepository foreignExchangeRepository;
+
+    @Autowired
+    private ExchangeRateRepository exchangeRateRepository;
 
     @Override
     public void create(ForeignExchangeDTO dto) {
@@ -43,18 +47,16 @@ public class ForeignExchangeServiceBean implements ForeignExchangeService {
     public FindByDateView findByDate(LocalDate localDate) {
         Date date = java.sql.Date.valueOf(localDate);
         FindByDateView findByDateView = FindByDateView.builder().build();
-        ForeignExchange foreignExchangeByDate = this.foreignExchangeRepository.findByDateAndMarkForDeleteFalse(date);
-        List<ExchangeRate> exchangeRates = foreignExchangeByDate.getExchangeRates();
         List<ForeignExchange> foreignExchanges = this.foreignExchangeRepository
                 .findTop7ByDateLessThanEqualAndMarkForDeleteFalseOrderByDateDesc(date);
-        int exchangeRateCount = foreignExchangeByDate.getExchangeRates().size();
-        Preconditions.checkArgument(exchangeRateCount > 0);
-        for (int i = 0; i < exchangeRateCount; i++) {
+        List<ExchangeRate> exchangeRates = this.exchangeRateRepository
+                .findAllByParentAndMarkForDeleteFalse(foreignExchanges.get(0).getId());
+        for (int i = 0; i < exchangeRates.size(); i++) {
             ExchangeRate current = exchangeRates.get(i);
-            if (exchangeRates.get(i).getRate() == 0 || exchangeRates.get(i).getRate() == null) {
+            if (current.getRate() == 0 || current.getRate() == null) {
                 findByDateView.getRate().add("insufficient_data");
             } else {
-                findByDateView.getRate().add(exchangeRates.get(i).getRate().toString());
+                findByDateView.getRate().add(current.getRate().toString());
             }
             findByDateView.getAverage()
                     .add(this.average(foreignExchanges, current.getExchangeFrom(), current.getExchangeTo()));
@@ -72,18 +74,19 @@ public class ForeignExchangeServiceBean implements ForeignExchangeService {
         List<Double> tempRates = new ArrayList<>();
         for (int i = 0; i < foreignExchanges.size(); i++) {
             tempDates.add(foreignExchanges.get(i).getDate());
-            for (int j = 0; j < foreignExchanges.get(i).getExchangeRates().size(); j++) {
-                ExchangeRate currentExchangeRate = foreignExchanges.get(i).getExchangeRates().get(j);
-                if (exchangeFrom.equals(currentExchangeRate.getExchangeFrom())
-                        && exchangeTo.equals(currentExchangeRate.getExchangeTo())) {
-                    tempRates.add(currentExchangeRate.getRate());
+            List<ExchangeRate> exchangeRates = exchangeRateRepository
+                    .findAllByParentAndMarkForDeleteFalse(foreignExchanges.get(i).getId());
+            for (int j = 0; j < exchangeRates.size(); j++) {
+                if (exchangeFrom.equals(exchangeRates.get(j).getExchangeFrom())
+                        && exchangeTo.equals(exchangeRates.get(j).getExchangeTo())) {
+                    tempRates.add(exchangeRates.get(j).getRate());
                 }
             }
         }
         RecentView recentView = RecentView.builder().dates(tempDates).rates(tempRates).build();
         recentView.setAverage(this.average(foreignExchanges, exchangeFrom, exchangeTo));
-        Double varience = Collections.max(tempRates) - Collections.min(tempRates);
-        recentView.setVarience(varience);
+        Double variance = Collections.max(tempRates) - Collections.min(tempRates);
+        recentView.setVariance(variance);
         return recentView;
     }
 
@@ -91,7 +94,8 @@ public class ForeignExchangeServiceBean implements ForeignExchangeService {
     public void addExchangeRate(String exchangeFrom, String exchangeTo) {
         List<ForeignExchange> foreignExchanges = this.foreignExchangeRepository.findAllByMarkForDeleteFalse();
         for (int i = 0; i < foreignExchanges.size(); i++) {
-            ExchangeRate newExchangeRate = ExchangeRate.builder().exchangeFrom(exchangeFrom).exchangeTo(exchangeTo).rate(0d)
+            ExchangeRate newExchangeRate = ExchangeRate.builder().exchangeFrom(exchangeFrom).exchangeTo(exchangeTo)
+                    .rate(0d)
                     .build();
             foreignExchanges.get(i).getExchangeRates().add(newExchangeRate);
             this.foreignExchangeRepository.save(foreignExchanges.get(i));
@@ -102,7 +106,8 @@ public class ForeignExchangeServiceBean implements ForeignExchangeService {
     public String average(List<ForeignExchange> foreignExchanges, String exchangeFrom, String exchangeTo) {
         double sum = 0;
         for (int i = 0; i < foreignExchanges.size(); i++) {
-            List<ExchangeRate> exchangeRates = foreignExchanges.get(i).getExchangeRates();
+            List<ExchangeRate> exchangeRates = exchangeRateRepository
+                    .findAllByParentAndMarkForDeleteFalse(foreignExchanges.get(i).getId());
             for (int j = 0; j < exchangeRates.size(); j++) {
                 ExchangeRate exchangeRate = exchangeRates.get(j);
                 if (exchangeRate.getExchangeFrom().equals(exchangeFrom) &&

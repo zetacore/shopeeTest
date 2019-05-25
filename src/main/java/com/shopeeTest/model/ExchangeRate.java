@@ -31,6 +31,9 @@ public class ExchangeRate implements Serializable {
     @Column(name = "rate")
     private Double rate;
 
+    @Column(name = "parent")
+    private String parent;
+
     @Column(name = "mark_for_delete")
     @Builder.Default
     private boolean markForDelete = false;

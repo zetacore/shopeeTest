@@ -13,7 +13,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-import org.mockito.verification.VerificationMode;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -26,7 +25,6 @@ public class ForeignExchangeServiceBeanTest {
     private static String DEFAULT_EXCHANGE_FROM = "exchange_from";
     private static String DEFAULT_EXCHANGE_TO = "exchange_to";
     private static Double DEFAULT_RATE = 0.1d;
-    private static String DEFAULT_PARENT_CODE = "parent";
     private static Date DEFAULT_DATE = new Date();
     private static String DEFAULT_LOCAL_DATE = "11/11/2011";
 
@@ -53,7 +51,8 @@ public class ForeignExchangeServiceBeanTest {
     private ForeignExchangeDTO generateForeignExchangeDTO() {
         List exchangeRatesDTOs = new ArrayList();
         exchangeRatesDTOs.add(ExchangeRateDTO.builder().build());
-        return ForeignExchangeDTO.builder().date(new Date()).exchangeRateDTOS(exchangeRatesDTOs).build();
+        return ForeignExchangeDTO.builder().date(ForeignExchangeServiceBeanTest.DEFAULT_DATE).
+                exchangeRateDTOS(exchangeRatesDTOs).build();
     }
 
     private ExchangeRate generateExchangeRate() {
@@ -72,7 +71,11 @@ public class ForeignExchangeServiceBeanTest {
     private List<ForeignExchange> generateForeignExchanges() {
         List<ForeignExchange> foreignExchanges = new ArrayList<>();
         for (int i = 0; i < 7; i++) {
-            foreignExchanges.add(generateForeignExchange());
+            ForeignExchange foreignExchange = this.generateForeignExchange();
+            List<ExchangeRate> exchangeRates = new ArrayList<>();
+            exchangeRates.add(generateExchangeRate());
+            foreignExchange.setExchangeRates(exchangeRates);
+            foreignExchanges.add(foreignExchange);
         }
         return foreignExchanges;
     }
@@ -116,5 +119,50 @@ public class ForeignExchangeServiceBeanTest {
                 .findTop7ByDateLessThanEqualAndMarkForDeleteFalseOrderByDateDesc(Mockito.any(Date.class));
         Mockito.verify(this.exchangeRateRepository, Mockito.times(2))
                 .findAllByParentAndMarkForDeleteFalse(Mockito.anyString());
+    }
+
+    @Test
+    public void recentExchangeRate_Valid_Success() {
+        Mockito.when(this.exchangeRateRepository.findAllByParentAndMarkForDeleteFalse(Mockito.anyString()))
+                .thenReturn(Arrays.asList(generateExchangeRate()));
+        Mockito.when(this.foreignExchangeRepository
+                .findTop7ByDateLessThanEqualAndMarkForDeleteFalseOrderByDateDesc(Mockito.any(Date.class)))
+                .thenReturn(generateForeignExchanges());
+        this.foreignExchangeService
+                .recentExchangeRate(ForeignExchangeServiceBeanTest.DEFAULT_EXCHANGE_FROM,
+                        ForeignExchangeServiceBeanTest.DEFAULT_EXCHANGE_TO);
+        Mockito.verify(this.exchangeRateRepository, Mockito.times(14))
+                .findAllByParentAndMarkForDeleteFalse(Mockito.anyString());
+        Mockito.verify(this.foreignExchangeRepository)
+                .findTop7ByDateLessThanEqualAndMarkForDeleteFalseOrderByDateDesc(Mockito.any(Date.class));
+    }
+
+    @Test
+    public void recentExchangeRate_InsufficientData_Success() {
+        ExchangeRate exchangeRate = this.generateExchangeRate();
+        exchangeRate.setRate(0d);
+        Mockito.when(this.exchangeRateRepository.findAllByParentAndMarkForDeleteFalse(Mockito.anyString()))
+                .thenReturn(Arrays.asList(exchangeRate));
+        Mockito.when(this.foreignExchangeRepository
+                .findTop7ByDateLessThanEqualAndMarkForDeleteFalseOrderByDateDesc(Mockito.any(Date.class)))
+                .thenReturn(generateForeignExchanges());
+        this.foreignExchangeService
+                .recentExchangeRate(ForeignExchangeServiceBeanTest.DEFAULT_EXCHANGE_FROM,
+                        ForeignExchangeServiceBeanTest.DEFAULT_EXCHANGE_TO);
+        Mockito.verify(this.foreignExchangeRepository)
+                .findTop7ByDateLessThanEqualAndMarkForDeleteFalseOrderByDateDesc(Mockito.any(Date.class));
+        Mockito.verify(this.exchangeRateRepository, Mockito.times(8))
+                .findAllByParentAndMarkForDeleteFalse(Mockito.anyString());
+    }
+
+    @Test
+    public void addExchangeRate_Success_Success() {
+        List<ForeignExchange> foreignExchanges = new ArrayList<>();
+        Mockito.when(this.foreignExchangeRepository.findAllByMarkForDeleteFalse())
+                .thenReturn(foreignExchanges);
+        this.foreignExchangeService.addExchangeRate(ForeignExchangeServiceBeanTest.DEFAULT_EXCHANGE_FROM,
+                ForeignExchangeServiceBeanTest.DEFAULT_EXCHANGE_TO);
+        Mockito.verify(this.foreignExchangeRepository).findAllByMarkForDeleteFalse();
+        Mockito.verify(this.foreignExchangeRepository, Mockito.times(foreignExchanges.size())).save(Mockito.any());
     }
 }

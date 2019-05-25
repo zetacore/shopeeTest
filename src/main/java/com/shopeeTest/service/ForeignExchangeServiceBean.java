@@ -1,6 +1,6 @@
 package com.shopeeTest.service;
 
-import com.google.common.base.Preconditions;
+
 import com.shopeeTest.dto.ExchangeRateDTO;
 import com.shopeeTest.dto.ForeignExchangeDTO;
 import com.shopeeTest.model.ExchangeRate;
@@ -74,7 +74,7 @@ public class ForeignExchangeServiceBean implements ForeignExchangeService {
         List<Double> tempRates = new ArrayList<>();
         for (int i = 0; i < foreignExchanges.size(); i++) {
             tempDates.add(foreignExchanges.get(i).getDate());
-            List<ExchangeRate> exchangeRates = exchangeRateRepository
+            List<ExchangeRate> exchangeRates = this.exchangeRateRepository
                     .findAllByParentAndMarkForDeleteFalse(foreignExchanges.get(i).getId());
             for (int j = 0; j < exchangeRates.size(); j++) {
                 if (exchangeFrom.equals(exchangeRates.get(j).getExchangeFrom())
